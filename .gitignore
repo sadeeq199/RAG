@@ -43,3 +43,6 @@ logs/
 Thumbs.db
 .vscode/
 .idea/
+
+chroma_db/
+.validation_chroma/

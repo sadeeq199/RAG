@@ -15,7 +15,7 @@ retrieval_module = importlib.import_module("06_retrieve_context")
 prompting_module = importlib.import_module("07_prompting")
 
 DATA_DIR = Path("data")
-CHROMA_DIR = Path("chroma_db")
+CHROMA_DIR = store_module.DEFAULT_PERSIST_DIR
 LOGGER = logging.getLogger(__name__)
 
 
