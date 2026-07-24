@@ -6,6 +6,8 @@ import importlib
 import logging
 import shutil
 from pathlib import Path
+import os
+import tempfile
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -17,8 +19,10 @@ vectors_module = importlib.import_module("04_vector_representation")
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_DATA_DIR = Path("data")
-DEFAULT_PERSIST_DIR = Path("chroma_db")
-COLLECTION_NAME = "rag_documents"
+if os.getenv("STREAMLIT_RUNTIME") or os.getenv("STREAMLIT_SERVER_PORT"):
+    DEFAULT_PERSIST_DIR = Path(tempfile.gettempdir()) / "chroma_db"
+else:
+    DEFAULT_PERSIST_DIR = Path("chroma_db")COLLECTION_NAME = "rag_documents"
 
 
 def is_chroma_initialized(persist_dir: str | Path = DEFAULT_PERSIST_DIR) -> bool:
