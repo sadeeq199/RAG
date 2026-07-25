@@ -145,7 +145,11 @@ def main() -> None:
     if uploaded_files:
         saved_paths = save_uploads(uploaded_files)
         st.success(f"Saved {len(saved_paths)} file(s) to {DATA_DIR}.")
-        build_database(rebuild=True)
+        # تعديل منع التدمير الإجباري لقاعدة البيانات أثناء الرفع إذا كانت مبنية بالفعل
+        if not has_database():
+            build_database(rebuild=False)
+        else:
+            build_database(rebuild=False)
     elif documents_module.discover_documents(DATA_DIR) and not has_database():
         st.info("Documents found. Building the database automatically.")
         build_database(rebuild=False)
