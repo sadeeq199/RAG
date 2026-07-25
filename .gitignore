@@ -20,6 +20,7 @@ ENV/
 # Chroma and local data
 chroma_db/*
 !chroma_db/.gitkeep
+.validation_chroma/
 data/*
 !data/.gitkeep
 
@@ -43,6 +44,3 @@ logs/
 Thumbs.db
 .vscode/
 .idea/
-
-chroma_db/
-.validation_chroma/

@@ -8,6 +8,12 @@ from html import escape
 from pathlib import Path
 
 import streamlit as st
+from dotenv import load_dotenv
+
+# Load variables from a local .env file (if present) into the process
+# environment for local development. This has no effect on Streamlit
+# Community Cloud, where secrets are provided via st.secrets instead.
+load_dotenv()
 
 documents_module = importlib.import_module("01_documents")
 store_module = importlib.import_module("05_create_chroma_store")
@@ -15,6 +21,9 @@ retrieval_module = importlib.import_module("06_retrieve_context")
 prompting_module = importlib.import_module("07_prompting")
 
 DATA_DIR = Path("data")
+# Single source of truth: the same directory 05_create_chroma_store.py and
+# 06_retrieve_context.py resolve to, so the app always reads from and writes
+# to the same place (never re-derived or hard-coded here).
 CHROMA_DIR = store_module.DEFAULT_PERSIST_DIR
 LOGGER = logging.getLogger(__name__)
 

@@ -1,9 +1,10 @@
 streamlit>=1.36.0
-langchain>=0.2.11
-langchain-community>=0.2.10
-langchain-core>=0.2.24
-langchain-chroma>=0.1.2
-chromadb>=0.5.5
+langchain-community>=0.4.2
+langchain-core>=1.5.1
+langchain-text-splitters>=1.1.2
+langchain-chroma>=1.1.0
+langchain-huggingface>=1.2.2
+chromadb>=1.5.9
 sentence-transformers>=3.0.1
 pypdf>=4.3.1
 requests>=2.32.3

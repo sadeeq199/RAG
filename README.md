@@ -41,7 +41,25 @@ This project is ready for Streamlit Cloud. Push the project to a repository, cre
 streamlit_app.py
 ```
 
-The Chroma database is stored in `chroma_db/` at runtime and can be rebuilt from uploaded or bundled documents.
+### Persistence directory
+
+The Chroma persistence directory is resolved once, in `05_create_chroma_store.py`,
+and reused everywhere else (`06_retrieve_context.py`, `streamlit_app.py`) — there
+is a single source of truth, never a hard-coded path duplicated across files.
+
+Resolution order:
+
+1. An explicit `CHROMA_PERSIST_DIRECTORY` override (via Streamlit secrets, `.env`, or an environment variable).
+2. `./chroma_db` when the working directory is writable (local development).
+3. A folder under `tempfile.gettempdir()` when the working directory is **not**
+   writable. On Streamlit Community Cloud the cloned repository checkout is
+   read-only, which is the real cause of `attempt to write a readonly database`
+   errors — the app detects this automatically (by testing writability, not by
+   guessing the platform) and never attempts to write inside the cloned repo.
+
+Because the fallback directory lives under the OS temp folder, the index is
+rebuilt from `data/` (or from uploads) each time the app starts on Streamlit
+Cloud, since temp storage isn't guaranteed to persist across restarts.
 
 ## Secrets Configuration
 
@@ -50,14 +68,20 @@ For Streamlit Cloud, add these secrets:
 ```toml
 OPENROUTER_API_KEY="your_key"
 OPENROUTER_MODEL="openai/gpt-4o-mini"
+# Optional override; otherwise resolved automatically (see Persistence directory above).
+CHROMA_PERSIST_DIRECTORY=""
 ```
 
-For local development, you can use environment variables:
+For local development, you can use environment variables or a `.env` file
+(loaded automatically via `python-dotenv`):
 
 ```bash
 OPENROUTER_API_KEY=your_key
 OPENROUTER_MODEL=openai/gpt-4o-mini
 ```
+
+Configuration values are read with this priority: `st.secrets` first, then
+`.env`, then real environment variables.
 
 ## Folder Structure
 

@@ -12,6 +12,13 @@ try:
 except ImportError:  # pragma: no cover - Streamlit is present in the app runtime.
     st = None  # type: ignore[assignment]
 
+try:
+    from dotenv import dotenv_values
+except ImportError:  # pragma: no cover - python-dotenv is a hard requirement.
+    dotenv_values = None  # type: ignore[assignment]
+
+_ENV_FILE_VALUES = dotenv_values(".env") if dotenv_values is not None else {}
+
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-4o-mini"
 PROMPT_TEMPLATE = """You are a helpful AI assistant.
@@ -36,7 +43,7 @@ Answer:
 
 
 def _read_secret(name: str, default: str | None = None) -> str | None:
-    """Read a value from Streamlit secrets, falling back to environment variables."""
+    """Read a config value with priority: st.secrets, then .env, then os.environ."""
     if st is not None:
         try:
             value = st.secrets.get(name)
@@ -44,6 +51,11 @@ def _read_secret(name: str, default: str | None = None) -> str | None:
                 return str(value)
         except Exception:
             pass
+
+    env_file_value = _ENV_FILE_VALUES.get(name)
+    if env_file_value:
+        return env_file_value
+
     return os.getenv(name, default)
 
 
