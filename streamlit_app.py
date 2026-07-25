@@ -20,7 +20,8 @@ store_module = importlib.import_module("05_create_chroma_store")
 retrieval_module = importlib.import_module("06_retrieve_context")
 prompting_module = importlib.import_module("07_prompting")
 
-DATA_DIR = Path("data")
+# Single source of truth: استخدام مسار البيانات الديناميكي القابل للكتابة دائماً
+DATA_DIR = store_module.DEFAULT_DATA_DIR
 # Single source of truth: the same directory 05_create_chroma_store.py and
 # 06_retrieve_context.py resolve to, so the app always reads from and writes
 # to the same place (never re-derived or hard-coded here).
@@ -143,7 +144,7 @@ def main() -> None:
     )
     if uploaded_files:
         saved_paths = save_uploads(uploaded_files)
-        st.success(f"Saved {len(saved_paths)} file(s) to data/.")
+        st.success(f"Saved {len(saved_paths)} file(s) to {DATA_DIR}.")
         build_database(rebuild=True)
     elif documents_module.discover_documents(DATA_DIR) and not has_database():
         st.info("Documents found. Building the database automatically.")
