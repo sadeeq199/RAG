@@ -35,7 +35,18 @@ chunking_module = importlib.import_module("03_chunking")
 vectors_module = importlib.import_module("04_vector_representation")
 
 LOGGER = logging.getLogger(__name__)
-DEFAULT_DATA_DIR = Path("data")
+
+# تعديل مسار البيانات الافتراضي ليتحول تلقائياً إلى مجلد المؤقت /tmp إذا كان المجلد المحلي غير قابل للكتابة
+def _get_default_data_dir() -> Path:
+    local_data = Path("data").resolve()
+    if local_data.exists() and os.access(local_data, os.W_OK):
+        return local_data
+    # بديل مؤقت على السيرفرات السحابية مثل Streamlit Cloud
+    cloud_data = Path(tempfile.gettempdir()) / "rag_project_data"
+    cloud_data.mkdir(parents=True, exist_ok=True)
+    return cloud_data
+
+DEFAULT_DATA_DIR = _get_default_data_dir()
 COLLECTION_NAME = "rag_documents"
 PERSIST_DIR_ENV_VAR = "CHROMA_PERSIST_DIRECTORY"
 _CLOUD_TEMP_SUBDIR = "rag_project_chroma_db"
@@ -83,11 +94,7 @@ def get_persist_directory() -> Path:
       2. ``./chroma_db`` when the current working directory is writable
          (local development).
       3. A directory under the OS temp folder (``tempfile.gettempdir()``)
-         when the working directory is read-only, which is exactly the
-         situation on Streamlit Community Cloud: the cloned repository
-         checkout is not writable, which is the real root cause of the
-         "attempt to write a readonly database" error. We never attempt to
-         write inside the cloned repository in that case.
+         when the working directory is read-only.
     """
     override = _read_config_value(PERSIST_DIR_ENV_VAR)
     if override:
