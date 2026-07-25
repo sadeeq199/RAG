@@ -123,13 +123,13 @@ def get_persist_directory() -> Path:
       3. Fall back to tempfile.gettempdir() if local directory is not writable.
     """
     if is_streamlit_cloud():
-        cloud_fallback = Path(tempfile.gettempdir()) / _CLOUD_TEMP_SUBDIR
+        cloud_fallback = (Path(tempfile.gettempdir()) / _CLOUD_TEMP_SUBDIR).resolve()
         cloud_fallback.mkdir(parents=True, exist_ok=True)
         return cloud_fallback
 
     override = _read_config_value(PERSIST_DIR_ENV_VAR)
     if override:
-        override_path = Path(override)
+        override_path = Path(override).resolve()
         override_path.mkdir(parents=True, exist_ok=True)
         return override_path
 
@@ -137,7 +137,7 @@ def get_persist_directory() -> Path:
     if _directory_is_writable(local_candidate):
         return local_candidate
 
-    cloud_fallback = Path(tempfile.gettempdir()) / _CLOUD_TEMP_SUBDIR
+    cloud_fallback = (Path(tempfile.gettempdir()) / _CLOUD_TEMP_SUBDIR).resolve()
     LOGGER.info(
         "%s is not writable; using temp persistence directory %s",
         local_candidate,
@@ -156,7 +156,7 @@ def _resolve_persist_dir(persist_dir: str | Path | None = None) -> Path:
         return get_persist_directory()
     if persist_dir is None:
         return get_persist_directory()
-    return Path(persist_dir)
+    return Path(persist_dir).resolve()
 
 
 def is_chroma_initialized(persist_dir: str | Path | None = None) -> bool:
@@ -179,7 +179,7 @@ def create_chroma_store(
 ) -> Chroma:
     """Create or rebuild a persistent Chroma store from local documents."""
     resolved_data_dir = _get_default_data_dir() if data_dir is None else Path(data_dir)
-    persist_path = _resolve_persist_dir(persist_dir)
+    persist_path = _resolve_persist_dir(persist_dir).resolve()
     if rebuild and persist_path.exists():
         shutil.rmtree(persist_path)
         LOGGER.info("Removed existing Chroma database at %s", persist_path)
@@ -191,11 +191,13 @@ def create_chroma_store(
     embeddings = vectors_module.get_embeddings()
     persist_path.mkdir(parents=True, exist_ok=True)
 
-    client = chromadb.PersistentClient(path=str(persist_path))
+    abs_persist_path_str = str(persist_path)
+    client = chromadb.PersistentClient(path=abs_persist_path_str)
     vector_store = Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
         client=client,
+        persist_directory=abs_persist_path_str,
         collection_name=COLLECTION_NAME,
     )
     LOGGER.info("Persisted %s chunks to %s", len(chunks), persist_path)
@@ -204,14 +206,16 @@ def create_chroma_store(
 
 def load_chroma_store(persist_dir: str | Path | None = None) -> Chroma:
     """Load an existing persistent Chroma store."""
-    persist_path = _resolve_persist_dir(persist_dir)
+    persist_path = _resolve_persist_dir(persist_dir).resolve()
     if not is_chroma_initialized(persist_path):
         raise FileNotFoundError("Chroma database does not exist yet.")
 
     embeddings = vectors_module.get_embeddings()
-    client = chromadb.PersistentClient(path=str(persist_path))
+    abs_persist_path_str = str(persist_path)
+    client = chromadb.PersistentClient(path=abs_persist_path_str)
     return Chroma(
         client=client,
+        persist_directory=abs_persist_path_str,
         embedding_function=embeddings,
         collection_name=COLLECTION_NAME,
     )
