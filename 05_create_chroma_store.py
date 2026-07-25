@@ -16,6 +16,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import chromadb
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
@@ -149,9 +150,18 @@ def get_persist_directory() -> Path:
 DEFAULT_PERSIST_DIR = get_persist_directory()
 
 
-def is_chroma_initialized(persist_dir: str | Path = DEFAULT_PERSIST_DIR) -> bool:
+def _resolve_persist_dir(persist_dir: str | Path | None = None) -> Path:
+    """Ensure persist_dir strictly uses get_persist_directory() when on Streamlit Cloud."""
+    if is_streamlit_cloud():
+        return get_persist_directory()
+    if persist_dir is None:
+        return get_persist_directory()
+    return Path(persist_dir)
+
+
+def is_chroma_initialized(persist_dir: str | Path | None = None) -> bool:
     """Return whether a Chroma persistence directory contains a database."""
-    persist_path = Path(persist_dir)
+    persist_path = _resolve_persist_dir(persist_dir)
     return persist_path.exists() and (persist_path / "chroma.sqlite3").exists()
 
 
@@ -163,50 +173,55 @@ def load_prepare_chunks(data_dir: str | Path = DEFAULT_DATA_DIR) -> list[Documen
 
 
 def create_chroma_store(
-    data_dir: str | Path = DEFAULT_DATA_DIR,
-    persist_dir: str | Path = DEFAULT_PERSIST_DIR,
+    data_dir: str | Path | None = None,
+    persist_dir: str | Path | None = None,
     rebuild: bool = False,
 ) -> Chroma:
     """Create or rebuild a persistent Chroma store from local documents."""
-    persist_path = Path(persist_dir)
+    resolved_data_dir = _get_default_data_dir() if data_dir is None else Path(data_dir)
+    persist_path = _resolve_persist_dir(persist_dir)
     if rebuild and persist_path.exists():
         shutil.rmtree(persist_path)
         LOGGER.info("Removed existing Chroma database at %s", persist_path)
 
-    chunks = load_prepare_chunks(data_dir)
+    chunks = load_prepare_chunks(resolved_data_dir)
     if not chunks:
         raise ValueError("No valid PDF or TXT content found in the data directory.")
 
     embeddings = vectors_module.get_embeddings()
     persist_path.mkdir(parents=True, exist_ok=True)
+
+    client = chromadb.PersistentClient(path=str(persist_path))
     vector_store = Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
-        persist_directory=str(persist_path),
+        client=client,
         collection_name=COLLECTION_NAME,
     )
     LOGGER.info("Persisted %s chunks to %s", len(chunks), persist_path)
     return vector_store
 
 
-def load_chroma_store(persist_dir: str | Path = DEFAULT_PERSIST_DIR) -> Chroma:
+def load_chroma_store(persist_dir: str | Path | None = None) -> Chroma:
     """Load an existing persistent Chroma store."""
-    persist_path = Path(persist_dir)
+    persist_path = _resolve_persist_dir(persist_dir)
     if not is_chroma_initialized(persist_path):
         raise FileNotFoundError("Chroma database does not exist yet.")
 
     embeddings = vectors_module.get_embeddings()
+    client = chromadb.PersistentClient(path=str(persist_path))
     return Chroma(
-        persist_directory=str(persist_path),
+        client=client,
         embedding_function=embeddings,
         collection_name=COLLECTION_NAME,
     )
 
 
-def get_indexed_chunk_count(persist_dir: str | Path = DEFAULT_PERSIST_DIR) -> int:
+def get_indexed_chunk_count(persist_dir: str | Path | None = None) -> int:
     """Return the number of chunks stored in Chroma."""
     try:
-        store = load_chroma_store(persist_dir)
+        persist_path = _resolve_persist_dir(persist_dir)
+        store = load_chroma_store(persist_path)
         return int(store._collection.count())  # noqa: SLF001 - Chroma exposes count here.
     except Exception as exc:  # noqa: BLE001 - status helper should never crash UI.
         LOGGER.warning("Could not read Chroma chunk count: %s", exc)
