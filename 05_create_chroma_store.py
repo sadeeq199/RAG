@@ -91,14 +91,20 @@ def get_persist_directory() -> Path:
 
     Order of resolution:
       1. An explicit ``CHROMA_PERSIST_DIRECTORY`` override (secrets/.env/env).
-      2. ``./chroma_db`` when the current working directory is writable
+      2. Force /tmp directory when running on Streamlit Community Cloud.
+      3. ``./chroma_db`` when the current working directory is writable
          (local development).
-      3. A directory under the OS temp folder (``tempfile.gettempdir()``)
-         when the working directory is read-only.
     """
     override = _read_config_value(PERSIST_DIR_ENV_VAR)
     if override:
         return Path(override)
+
+    # التحقق مما إذا كنا على Streamlit Cloud لفرض استخدام مجلد /tmp مباشرة
+    is_streamlit_cloud = os.path.exists("/mount/src")
+    if is_streamlit_cloud:
+        cloud_fallback = Path(tempfile.gettempdir()) / _CLOUD_TEMP_SUBDIR
+        cloud_fallback.mkdir(parents=True, exist_ok=True)
+        return cloud_fallback
 
     local_candidate = Path("chroma_db").resolve()
     if _directory_is_writable(local_candidate):
