@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
@@ -12,8 +14,20 @@ LOGGER = logging.getLogger(__name__)
 SUPPORTED_EXTENSIONS = {".pdf", ".txt"}
 
 
-def discover_documents(data_dir: str | Path = "data") -> list[Path]:
+def _get_default_data_dir() -> Path:
+    """Return default data directory based on execution environment."""
+    is_cloud = os.path.exists("/mount/src") or str(Path.cwd()).startswith("/mount/src")
+    if is_cloud:
+        cloud_data = Path(tempfile.gettempdir()) / "rag_project_data"
+        cloud_data.mkdir(parents=True, exist_ok=True)
+        return cloud_data
+    return Path("data").resolve()
+
+
+def discover_documents(data_dir: str | Path | None = None) -> list[Path]:
     """Return all supported document paths inside the data directory."""
+    if data_dir is None:
+        data_dir = _get_default_data_dir()
     root = Path(data_dir)
     if not root.exists():
         LOGGER.info("Data directory does not exist yet: %s", root)
@@ -26,8 +40,10 @@ def discover_documents(data_dir: str | Path = "data") -> list[Path]:
     )
 
 
-def load_documents(data_dir: str | Path = "data") -> list[Document]:
+def load_documents(data_dir: str | Path | None = None) -> list[Document]:
     """Load PDF and TXT files from data_dir as LangChain Document objects."""
+    if data_dir is None:
+        data_dir = _get_default_data_dir()
     documents: list[Document] = []
 
     for path in discover_documents(data_dir):

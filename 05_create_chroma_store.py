@@ -36,15 +36,51 @@ vectors_module = importlib.import_module("04_vector_representation")
 
 LOGGER = logging.getLogger(__name__)
 
-# تعديل مسار البيانات الافتراضي ليتحول تلقائياً إلى مجلد المؤقت /tmp إذا كان المجلد المحلي غير قابل للكتابة
+def is_streamlit_cloud() -> bool:
+    """Return whether the application is executing on Streamlit Community Cloud."""
+    return os.path.exists("/mount/src") or str(Path.cwd()).startswith("/mount/src")
+
+
+def _directory_is_writable(path: Path) -> bool:
+    """Return whether `path` can actually be created and written to."""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
 def _get_default_data_dir() -> Path:
+    """Resolve the default data directory for document storage.
+
+    On Streamlit Community Cloud, use tempfile.gettempdir() to prevent read-only
+    filesystem errors on /mount/src.
+    For local development, use the local data/ folder.
+    """
+    if is_streamlit_cloud():
+        cloud_data = Path(tempfile.gettempdir()) / "rag_project_data"
+        cloud_data.mkdir(parents=True, exist_ok=True)
+        local_data = Path("data").resolve()
+        if local_data.exists() and local_data.is_dir():
+            for item in local_data.iterdir():
+                if item.is_file() and not (cloud_data / item.name).exists():
+                    try:
+                        shutil.copy2(item, cloud_data / item.name)
+                    except Exception:
+                        pass
+        return cloud_data
+
     local_data = Path("data").resolve()
-    if local_data.exists() and os.access(local_data, os.W_OK):
+    if _directory_is_writable(local_data):
         return local_data
-    # بديل مؤقت على السيرفرات السحابية مثل Streamlit Cloud
+
     cloud_data = Path(tempfile.gettempdir()) / "rag_project_data"
     cloud_data.mkdir(parents=True, exist_ok=True)
     return cloud_data
+
 
 DEFAULT_DATA_DIR = _get_default_data_dir()
 COLLECTION_NAME = "rag_documents"
@@ -74,37 +110,27 @@ def _read_config_value(name: str) -> str | None:
     return os.getenv(name)
 
 
-def _directory_is_writable(path: Path) -> bool:
-    """Return whether `path` can actually be created and written to."""
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-        probe = path / ".write_test"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink()
-        return True
-    except OSError:
-        return False
-
-
 def get_persist_directory() -> Path:
     """Resolve the one persistence directory used everywhere in the app.
 
-    Order of resolution:
-      1. An explicit ``CHROMA_PERSIST_DIRECTORY`` override (secrets/.env/env).
-      2. Force /tmp directory when running on Streamlit Community Cloud.
-      3. ``./chroma_db`` when the current working directory is writable
-         (local development).
-    """
-    override = _read_config_value(PERSIST_DIR_ENV_VAR)
-    if override:
-        return Path(override)
+    On Streamlit Community Cloud, strictly force using a writable temp directory
+    (tempfile.gettempdir()) to eliminate read-only database errors (code 1032).
 
-    # التحقق مما إذا كنا على Streamlit Cloud لفرض استخدام مجلد /tmp مباشرة
-    is_streamlit_cloud = os.path.exists("/mount/src")
-    if is_streamlit_cloud:
+    For local development:
+      1. Use explicit CHROMA_PERSIST_DIRECTORY override if configured.
+      2. Fall back to ./chroma_db when writable.
+      3. Fall back to tempfile.gettempdir() if local directory is not writable.
+    """
+    if is_streamlit_cloud():
         cloud_fallback = Path(tempfile.gettempdir()) / _CLOUD_TEMP_SUBDIR
         cloud_fallback.mkdir(parents=True, exist_ok=True)
         return cloud_fallback
+
+    override = _read_config_value(PERSIST_DIR_ENV_VAR)
+    if override:
+        override_path = Path(override)
+        override_path.mkdir(parents=True, exist_ok=True)
+        return override_path
 
     local_candidate = Path("chroma_db").resolve()
     if _directory_is_writable(local_candidate):
